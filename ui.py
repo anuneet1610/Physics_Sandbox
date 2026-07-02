@@ -76,13 +76,13 @@ def draw_slider2(screen, e_val):
     hy = e_to_slider_y(e_val)
     pygame.draw.circle(screen, (100, 220, 255), (SLIDER2_X, int(hy)), 10)
     f = pygame.font.SysFont(None, 24)
-    screen.blit(f.render(f"e = {e_val:.2f}", True, (255, 255, 255)), (SLIDER2_X - 40, SLIDER2_Y_TOP - 30))
+    screen.blit(f.render(f"e = {e_val:.2f}", True, (255, 255, 255)), (SLIDER2_X - 30, SLIDER2_Y_TOP - 30))
 
 # ------------------------
 # HUD
 # ------------------------
 
-HUD_Y_START = 843
+HUD_Y_START = 840
 HUD_LINE_H  = 18
 
 # ------------------------
@@ -90,73 +90,55 @@ HUD_LINE_H  = 18
 # ------------------------
 
 INFO_LINE_H  = 18
+VAL_X        = 155   # px from panel left edge to start of value column
+VAL_W_SINGLE = 90    # px wide for a single-value cell
+VAL_W_PAIR   = 78    # px wide for each of two side-by-side value cells
+VAL_GAP      = 6     # px gap between paired cells
+
+_info_field_rects = []   # (pygame.Rect, field_key) — rebuilt each frame
+_EDITABLE = {"mass", "radius", "length", "width", "x", "y", "vx", "vy"}
 
 def _format_label(obj, balls, rectangles):
-    """Return e.g. 'Ball #2' or 'Rectangle #1' for the given object."""
     if isinstance(obj, Rectangle):
         idx = rectangles.index(obj) if obj in rectangles else -1
         return f"Rectangle #{idx + 1}"
     else:
         idx = balls.index(obj) if obj in balls else -1
         return f"Ball #{idx + 1}"
-VAL_X        = 150   # px from panel left edge to start of value column
-VAL_W_SINGLE = 90    # px wide for a single value cell
-VAL_W_PAIR   = 80    # px wide for each of two side-by-side value cells
-VAL_GAP      = 6     # gap between the two paired cells
-
-# Populated every frame in draw_object_info_hud; used by info_field_at()
-_info_field_rects = []   # list of (pygame.Rect, field_key)
-
-# Fields the user is allowed to edit (momentum/KE/PE excluded)
-_EDITABLE = {"mass", "radius", "length", "width", "x", "y", "vx", "vy", "omega"}
-
 
 def _field_current_str(obj, field):
-    """Return the live value of 'field' on obj as a compact string."""
     mapping = {
         "mass":   lambda o: o.mass,
         "radius": lambda o: o.radius,
         "length": lambda o: o.length,
         "width":  lambda o: o.width,
-        "x":      lambda o: o.x,
-        "y":      lambda o: o.y,
-        "vx":     lambda o: o.vx,
-        "vy":     lambda o: o.vy,
-        "omega":  lambda o: getattr(o, "omega", 0.0),
+        "x":  lambda o: o.x,
+        "y":  lambda o: o.y,
+        "vx": lambda o: o.vx,
+        "vy": lambda o: o.vy,
     }
-    val = mapping[field](obj)
-    return f"{val:.5g}"
-
+    return f"{mapping[field](obj):.5g}"
 
 def _draw_value_cell(screen, px, py, val_str, field_key, cell_w):
-    """
-    Draw one value cell.  If field_key matches state.editing_field, show the
-    text buffer + cursor and a yellow highlight box.
-    Appends to _info_field_rects when field_key is editable.
-    Returns the surface x of the rendered text (unused externally).
-    """
-    is_editing = (field_key is not None and state.editing_field == field_key)
-    is_editable = field_key in _EDITABLE if field_key else False
-
-    cell_rect = pygame.Rect(px - 2, py - 1, cell_w, INFO_LINE_H)
+    is_editing  = (field_key is not None and state.editing_field == field_key)
+    is_editable = (field_key in _EDITABLE) if field_key else False
+    cell_rect   = pygame.Rect(px - 2, py - 1, cell_w, INFO_LINE_H)
 
     if is_editing:
         pygame.draw.rect(screen, (45, 45, 18), cell_rect)
         pygame.draw.rect(screen, (200, 200, 70), cell_rect, 1)
         display = state.editing_text + "|"
-        colour = (255, 255, 120)
+        colour  = (255, 255, 120)
     elif is_editable:
         display = val_str
-        colour = (255, 210, 70)   # warm yellow → clickable
+        colour  = (255, 210, 70)      # warm yellow → clickable
     else:
         display = val_str
-        colour = (160, 160, 160)  # dimmed → read-only
+        colour  = (160, 160, 160)     # dimmed → read-only
 
     screen.blit(font_vel.render(display, True, colour), (px, py))
-
     if is_editable:
         _info_field_rects.append((cell_rect, field_key))
-
 
 def draw_object_info_hud(screen, selected_obj, balls, rectangles, g_val):
     global _info_field_rects
@@ -169,7 +151,7 @@ def draw_object_info_hud(screen, selected_obj, balls, rectangles, g_val):
         strip.fill((0, 0, 0, 140))
         screen.blit(strip, (x, y - 4))
         screen.blit(font_hud_title.render(
-            "  Select an object from the panel to see its info",
+            "  Select an object from the side panel to see its info",
             True, (150, 150, 150)), (x + 6, y))
         return
 
@@ -184,10 +166,7 @@ def draw_object_info_hud(screen, selected_obj, balls, rectangles, g_val):
     py_   = mass * vy_
     ke_   = 0.5 * mass * (vx_ * vx_ + vy_ * vy_)
     pe_   = mass * g_val * selected_obj.y
-    omega = getattr(selected_obj, "omega", 0.0)
 
-    # Each row: (label_str, [(display_str, field_key_or_None), ...])
-    # field_key=None → read-only; field_key in _EDITABLE → editable
     if isinstance(selected_obj, Rectangle):
         size_row = ("Length / Width", [
             (f"{selected_obj.length:.4g}", "length"),
@@ -196,31 +175,29 @@ def draw_object_info_hud(screen, selected_obj, balls, rectangles, g_val):
     else:
         size_row = ("Radius", [(f"{selected_obj.radius:.4g}", "radius")])
 
+    # (label, [(display_str, field_key_or_None), ...])
+    # field_key=None → read-only
     rows = [
         ("Mass",         [(f"{mass:.4g}",  "mass")]),
         size_row,
-        ("Position",     [(f"{selected_obj.x:+.4g}", "x"), (f"{selected_obj.y:+.4g}", "y")]),
-        ("Velocity",     [(f"{vx_:+.4g}", "vx"),  (f"{vy_:+.4g}", "vy")]),
-        ("Acceleration", [(f"{ax_:+.4g}", None),  (f"{ay_:+.4g}", None)]),
-        ("Momentum",     [(f"{px_:+.4g}", None),  (f"{py_:+.4g}", None)]),
-        ("KE",           [(f"{ke_:.4g}",  None)]),
-        ("PE",           [(f"{pe_:.4g}",  None)]),
-        ("Angular vel.", [(f"{omega:+.4g}", "omega")]),
+        ("Position",     [(f"{selected_obj.x:+.4g}", "x"),  (f"{selected_obj.y:+.4g}", "y")]),
+        ("Velocity",     [(f"{vx_:+.4g}",  "vx"),           (f"{vy_:+.4g}", "vy")]),
+        ("Acceleration", [(f"{ax_:+.4g}",  None),           (f"{ay_:+.4g}", None)]),
+        ("Momentum",     [(f"{px_:+.4g}",  None),           (f"{py_:+.4g}", None)]),
+        ("KE",           [(f"{ke_:.4g}",   None)]),
+        ("PE",           [(f"{pe_:.4g}",   None)]),
     ]
 
     n_lines = len(rows) + 1   # +1 for title
-    strip = pygame.Surface((config.BOX_RIGHT - config.BOX_LEFT, INFO_LINE_H * n_lines + 10),
-                           pygame.SRCALPHA)
+    strip = pygame.Surface((config.BOX_RIGHT - config.BOX_LEFT, INFO_LINE_H * n_lines + 10), pygame.SRCALPHA)
     strip.fill((0, 0, 0, 140))
     screen.blit(strip, (x, y - 4))
 
-    # Title line
     obj_colour = getattr(selected_obj, "colour", (220, 220, 220))
     title = _format_label(selected_obj, balls, rectangles)
     screen.blit(font_hud_title.render(f"  {title}", True, obj_colour), (x + 6, y))
     y += INFO_LINE_H + 2
 
-    # Data rows
     for label, values in rows:
         has_editable = any(fk in _EDITABLE for _, fk in values if fk)
         label_col = (220, 220, 220) if has_editable else (140, 140, 140)
@@ -231,34 +208,26 @@ def draw_object_info_hud(screen, selected_obj, balls, rectangles, g_val):
             _draw_value_cell(screen, x + VAL_X, y, val_str, fk, VAL_W_SINGLE)
         else:
             for i, (val_str, fk) in enumerate(values):
-                cell_x = x + VAL_X + i * (VAL_W_PAIR + VAL_GAP)
-                _draw_value_cell(screen, cell_x, y, val_str, fk, VAL_W_PAIR)
+                _draw_value_cell(screen, x + VAL_X + i * (VAL_W_PAIR + VAL_GAP), y, val_str, fk, VAL_W_PAIR)
 
         y += INFO_LINE_H
-
 
 # ---- edit helpers ----
 
 def info_field_at(mx, my):
-    """Return field_key if (mx, my) is over an editable cell, else None."""
     for rect, fk in _info_field_rects:
         if rect.collidepoint(mx, my):
             return fk
     return None
 
-
 def start_edit(obj, field_key):
-    """Begin editing field_key; pre-populate buffer with current value."""
     state.editing_field = field_key
     state.editing_text  = _field_current_str(obj, field_key)
 
-
 def commit_edit(obj):
-    """Parse editing_text and write back to obj, then clear edit state."""
     if state.editing_field is None:
         return
-    field = state.editing_field
-    text  = state.editing_text
+    field, text = state.editing_field, state.editing_text
     state.editing_field = None
     state.editing_text  = ""
     if not text:
@@ -268,24 +237,11 @@ def commit_edit(obj):
     except ValueError:
         return
     if field in ("mass", "radius", "length", "width") and val <= 0:
-        return  # reject non-positive sizes
-    setattr_map = {
-        "mass": "mass", "radius": "radius",
-        "length": "length", "width": "width",
-        "x": "x", "y": "y",
-        "vx": "vx", "vy": "vy",
-        "omega": "omega",
-    }
-    attr = setattr_map.get(field)
-    if attr:
-        setattr(obj, attr, val)
-
+        return
+    setattr(obj, field, val)
 
 def handle_info_keydown(event, obj):
-    """
-    Route keyboard input while a field is being edited.
-    Returns True to signal the event was consumed (skip mode-switch keys).
-    """
+    """Route a KEYDOWN event while a field is being edited. Returns True = consumed."""
     if state.editing_field is None:
         return False
     if event.key in (pygame.K_RETURN, pygame.K_KP_ENTER):
@@ -296,22 +252,33 @@ def handle_info_keydown(event, obj):
     elif event.key == pygame.K_BACKSPACE:
         state.editing_text = state.editing_text[:-1]
     else:
-        ch = event.unicode
-        if ch in "0123456789.+-":
-            state.editing_text += ch
+        if event.unicode in "0123456789.+-":
+            state.editing_text += event.unicode
     return True
 
 def draw_mode_indicator(screen, mode):
     if mode == "WALL":
         colour = (255, 180, 50)
-        text = "WALL MODE    [W] wall  [S] spring  [B] ball"
+        text = "WALL MODE       [W] wall  [S] spring  [B] ball  [R] rect  [G] well"
     elif mode == "SPRING":
         colour = (180, 255, 100)
-        text = "SPRING MODE  [W] wall  [S] spring  [B] ball"
+        text = "SPRING MODE     [W] wall  [S] spring  [B] ball  [R] rect  [G] well"
+    elif mode == "RECTANGLE":
+        colour = (100, 100, 255)
+        text = "RECTANGLE MODE  [W] wall  [S] spring  [B] ball  [R] rect  [G] well"
+    elif mode == "WELL":
+        colour = (220, 100, 255)
+        text = "WELL MODE       [W] wall  [S] spring  [B] ball  [R] rect  [G] well"
     else:
         colour = (100, 220, 255)
-        text = "BALL MODE    [W] wall  [S] spring  [B] ball"
+        text = "BALL MODE       [W] wall  [S] spring  [B] ball  [R] rect  [G] well"
     screen.blit(font_mode.render(text, True, colour), (config.BOX_LEFT, config.BOX_TOP - 30))
+
+def draw_pause_indicator(screen, paused):
+    if paused:
+        text = "PAUSED  [P] resume"
+        colour = (255, 80, 80)
+        screen.blit(font_mode.render(text, True, colour), (config.BOX_LEFT, config.BOX_TOP - 50))
 
 # ------------------------
 # Spring Panel
@@ -340,7 +307,7 @@ def panel_objects(balls, rectangles):
         items.append((rect, f"R{idx+1}"))
     return items
 
-def draw_spring_panel(screen, balls, rectangles, spring_selected_obj, springs, controlled_ball):
+def draw_spring_panel(screen, balls, rectangles, spring_selected_obj, springs, selected_obj):
     # Background
     panel_surf = pygame.Surface((PANEL_W, PANEL_BOT - PANEL_TOP), pygame.SRCALPHA)
     panel_surf.fill((20, 20, 20, 200))
@@ -357,9 +324,6 @@ def draw_spring_panel(screen, balls, rectangles, spring_selected_obj, springs, c
         if ry + rh > PANEL_BOT:
             break
 
-        is_selected   = (obj is spring_selected_obj)
-        is_controlled = (obj is controlled_ball)
-
         # Check if this object is connected to the already-selected object via a spring
         already_linked = False
         if spring_selected_obj is not None and obj is not spring_selected_obj:
@@ -369,10 +333,13 @@ def draw_spring_panel(screen, balls, rectangles, spring_selected_obj, springs, c
                     already_linked = True
                     break
 
-        if is_controlled:
-            pygame.draw.rect(screen, (20, 50, 20), (rx, ry, rw, rh))
-        elif is_selected:
+        is_selected_panel = (obj is spring_selected_obj)
+        is_info_selected = (obj is selected_obj)
+
+        if is_selected_panel:
             pygame.draw.rect(screen, (60, 60, 20), (rx, ry, rw, rh))
+        elif is_info_selected:
+            pygame.draw.rect(screen, (20, 50, 20), (rx, ry, rw, rh))
         elif already_linked:
             pygame.draw.rect(screen, (50, 30, 10), (rx, ry, rw, rh))
 
@@ -384,10 +351,6 @@ def draw_spring_panel(screen, balls, rectangles, spring_selected_obj, springs, c
                               (cx - SWATCH_R, cy - SWATCH_R, SWATCH_R * 2, SWATCH_R * 2))
         else:
             pygame.draw.circle(screen, obj.colour, (cx, cy), SWATCH_R)
-
-        # Gamepad icon on controlled object
-        if is_controlled:
-            pygame.draw.circle(screen, (80, 255, 80), (cx, cy), SWATCH_R + 2, 2)
 
         # Label, e.g. "B1" or "R1"
         label = font_panel.render(label_text, True, (220, 220, 220))
@@ -410,3 +373,59 @@ def panel_object_at(mx, my, balls, rectangles):
         if ry + rh <= PANEL_BOT:
             return items[idx][0]
     return None
+
+GRAPH_PAD = 10
+GRAPH_GAP = 14
+NUM_GRAPHS = 4
+_total_h = config.GRAPH_PANEL_BOT - config.GRAPH_PANEL_TOP
+_single_h = (_total_h - GRAPH_GAP * (NUM_GRAPHS - 1)) / NUM_GRAPHS
+
+# (label, colour, index into history tuple (t, x, y, vx, vy))
+_GRAPH_SPECS = [
+    ("x(t)",  (100, 220, 255), 1),
+    ("y(t)",  (255, 180, 80),  2),
+    ("vx(t)", (160, 255, 120), 3),
+    ("vy(t)", (255, 120, 200), 4),
+]
+
+def _draw_single_graph(screen, gx, gy, gw, gh, history, value_idx, colour, label):
+    bg = pygame.Surface((gw, gh), pygame.SRCALPHA)
+    bg.fill((0, 0, 0, 140))
+    screen.blit(bg, (gx, gy))
+
+    if len(history) < 2:
+        screen.blit(font_panel.render(label, True, (200, 200, 200)), (gx + 4, gy + 4))
+        return
+
+    t0 = history[0][0]
+    t1 = history[-1][0]
+    t_span = max(t1 - t0, 1e-6)
+
+    vals = [p[value_idx] for p in history]
+    v_min, v_max = min(vals), max(vals)
+    v_range = max(v_max - v_min, 1e-6)
+
+    def to_screen_x(t):
+        return gx + GRAPH_PAD + (t - t0) / t_span * (gw - 2 * GRAPH_PAD)
+
+    def to_screen_y(val):
+        return gy + gh - GRAPH_PAD - (val - v_min) / v_range * (gh - 2 * GRAPH_PAD)
+
+    points = [(to_screen_x(p[0]), to_screen_y(p[value_idx])) for p in history]
+    if len(points) > 1:
+        pygame.draw.lines(screen, colour, False, points, 2)
+
+    screen.blit(font_panel.render(label, True, colour), (gx + 4, gy + 2))
+    cur_val = vals[-1]
+    val_text = font_panel.render(f"{cur_val:+.2f}", True, (200, 200, 200))
+    screen.blit(val_text, (gx + gw - val_text.get_width() - 4, gy + 2))
+
+def draw_kinematics_graphs(screen, position_history):
+    """Draw four stacked graphs: x(t), y(t), vx(t), vy(t) in the right-side panel."""
+    gx = config.GRAPH_PANEL_X
+    gw = config.GRAPH_PANEL_W
+    gy = config.GRAPH_PANEL_TOP
+
+    for label, colour, value_idx in _GRAPH_SPECS:
+        _draw_single_graph(screen, gx, int(gy), gw, int(_single_h), position_history, value_idx, colour, label)
+        gy += _single_h + GRAPH_GAP
