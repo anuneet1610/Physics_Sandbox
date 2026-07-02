@@ -49,62 +49,108 @@ clock = pygame.time.Clock()
 running = True
 while running:
     dt = clock.tick(120) / 1000.0
+    state.dt = dt
+
+    if not state.paused:
+        state.sim_time += dt
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
 
         elif event.type == pygame.KEYDOWN:
-            # While editing an info-panel field, route ALL keys there first
-            if state.editing_field is not None:
+            # If a field is being edited, consume the keystroke there first
+            if state.editing_field is not None and state.selected_obj is not None:
                 ui.handle_info_keydown(event, state.selected_obj)
+                continue   # don't let the keypress also trigger mode switches etc.
+
+            keys = pygame.key.get_pressed()  # snapshot of all held keys
+
+            if event.key == pygame.K_g:
+                if keys[pygame.K_z]:           # Z+G → delete last well
+                    if wells:
+                        wells.pop()
+                else:
+                    state.mode = "WELL" if state.mode != "WELL" else "BALL"
+                    state.wall_drawing = False
+                    state.spring_selected_obj = None
+
             elif event.key == pygame.K_w:
-                state.mode = "WALL" if state.mode != "WALL" else "BALL"
-                state.wall_drawing = False
-            elif event.key == pygame.K_s:
-                state.mode = "SPRING" if state.mode != "SPRING" else "BALL"
-                state.spring_selected_obj = None
+                if keys[pygame.K_z]:  # Z+W → delete last user wall
+                    if len(walls) > NUM_BOUNDARY_WALLS:
+                        walls.pop()
+                else:
+                    state.mode = "WALL" if state.mode != "WALL" else "BALL"
+                    state.wall_drawing = False
+
             elif event.key == pygame.K_b:
-                state.mode = "BALL"
-                state.wall_drawing = False
-                state.spring_selected_obj = None
+                if keys[pygame.K_z]:  # Z+B → delete last ball
+                    if balls:
+                        if state.selected_obj is balls[-1]:
+                            state.selected_obj = None
+                            state.position_history = []
+                        balls.pop()
+                else:
+                    state.mode = "BALL"
+                    state.wall_drawing = False
+                    state.spring_selected_obj = None
+
             elif event.key == pygame.K_r:
-                state.mode = "RECTANGLE" if state.mode != "RECTANGLE" else "BALL"
-                state.wall_drawing = False
+                if keys[pygame.K_z]:  # Z+R → delete last rectangle
+                    if rectangles:
+                        if state.selected_obj is rectangles[-1]:
+                            state.selected_obj = None
+                            state.position_history = []
+                        rectangles.pop()
+                else:
+                    state.mode = "RECTANGLE" if state.mode != "RECTANGLE" else "BALL"
+                    state.wall_drawing = False
+
+            elif event.key == pygame.K_s:
+                if keys[pygame.K_z]:  # Z+S → delete last spring
+                    if springs:
+                        springs.pop()
+                else:
+                    state.mode = "SPRING" if state.mode != "SPRING" else "BALL"
+                    state.spring_selected_obj = None
+
             elif event.key == pygame.K_z:
-                if len(walls) > NUM_BOUNDARY_WALLS:
-                    walls.pop()
-            elif event.key == pygame.K_x:
-                if springs:
-                    springs.pop()
+                pass  # Z alone does nothing now; it's only used as a modifier
+
+            elif event.key == pygame.K_p:
+                state.paused = not state.paused
 
         elif event.type == pygame.MOUSEBUTTONDOWN:
             mx, my = pygame.mouse.get_pos()
 
-            # Any click commits an in-progress field edit first
-            if state.editing_field is not None:
+            # If clicking outside the info panel while editing, commit the edit
+            if state.editing_field is not None and state.selected_obj is not None:
                 ui.commit_edit(state.selected_obj)
 
-            # Click on an editable info-panel cell?
-            info_field = ui.info_field_at(mx, my)
-            if info_field is not None and state.selected_obj is not None:
-                ui.start_edit(state.selected_obj, info_field)
+            # Check if a click landed on an editable info-panel field
+            if state.selected_obj is not None:
+                clicked_field = ui.info_field_at(mx, my)
+                if clicked_field is not None:
+                    ui.start_edit(state.selected_obj, clicked_field)
+                    continue   # don't let the click fall through to other handlers
 
             # Sliders always take priority
-            elif ui.point_on_slider_handle(mx, my):
+            if ui.point_on_slider_handle(mx, my):
                 ui.slider_dragging = True
             elif ui.point_on_slider2_handle(mx, my):
                 ui.slider2_dragging = True
 
-            # Panel click — select for info / toggle controlled ball / wire springs
+            # Panel click — toggle controlled ball / wire springs (always available)
             elif ui.panel_object_at(mx, my, balls, rectangles) is not None:
                 clicked = ui.panel_object_at(mx, my, balls, rectangles)
 
-                if event.button == 3:
-                    # Right click toggles keyboard control (balls only) — independent of selection
-                    if isinstance(clicked, bodies.Ball):
-                        state.controlled_ball = None if state.controlled_ball is clicked else clicked
-                elif state.mode == "SPRING":
+                # Selecting an object in the panel always shows its info in the bottom panel
+                new_selected = None if state.selected_obj is clicked else clicked
+                if new_selected is not state.selected_obj:
+                    state.position_history = []
+                state.selected_obj = new_selected
+
+                if state.mode == "SPRING":
                     # Spring wiring: left click (ball-ball, ball-rect, rect-rect all allowed)
                     if state.spring_selected_obj is None:
                         state.spring_selected_obj = clicked
@@ -122,16 +168,16 @@ while running:
                         else:
                             springs.append(spring.Spring(state.spring_selected_obj, clicked))
                         state.spring_selected_obj = None
-                else:
-                    # Left click (outside SPRING mode) selects the object for the info panel
-                    state.selected_obj = None if state.selected_obj is clicked else clicked
 
             else:
                 # Simulation area clicks
                 wx, wy = coords.screen_to_world(mx, my)
                 inside = state.left_wall <= wx <= state.right_wall and state.ground <= wy <= state.ceiling
 
-                if state.mode == "BALL" and inside:
+                if state.mode == "WELL" and inside:
+                    wells.append(gravity_well.Gravity_Well(x=wx, y=wy, mass=1000))
+
+                elif state.mode == "BALL" and inside:
                     balls.append(bodies.Ball(
                         x=wx, y=wy,
                         vx=random.uniform(-15, 15),
@@ -184,68 +230,62 @@ while running:
     # Physics
     # ------------------------
 
-    for ball in balls:
-        ball.clear_forces()
-
-    for rect in rectangles:
-        rect.clear_forces()
-
-    # Zero gravity + forces for controlled ball
-    if state.controlled_ball is not None:
-        state.controlled_ball.fx = 0.0
-        state.controlled_ball.fy = 0.0
-
-    for sp in springs:
-        sp.apply_forces()
-
-    for well in wells:
+    if not state.paused:
         for ball in balls:
-            well.ball_vs_well(ball)
+            ball.clear_forces()
+
         for rect in rectangles:
-            well.rect_vs_well(rect)
+            rect.clear_forces()
 
-    for ball in balls:
-        ball.integrate(dt)
+        for sp in springs:
+            sp.apply_forces()
 
-    for rect in rectangles:
-        rect.integrate(dt)
+        for well in wells:
+            for ball in balls:
+                well.ball_vs_well(ball)
+            for rect in rectangles:
+                well.rect_vs_well(rect)
 
-    # Apply keyboard control after integrate — overwrite velocity directly
-    if state.controlled_ball is not None:
-        keys = pygame.key.get_pressed()
-        vx, vy = 0.0, 0.0
-        if keys[pygame.K_LEFT]:  vx = -state.CONTROL_SPEED
-        if keys[pygame.K_RIGHT]: vx = +state.CONTROL_SPEED
-        if keys[pygame.K_DOWN]:  vy = -state.CONTROL_SPEED
-        if keys[pygame.K_UP]:    vy = +state.CONTROL_SPEED
-        state.controlled_ball.vx = vx
-        state.controlled_ball.vy = vy
+        for ball in balls:
+            ball.integrate(dt)
 
-    for ball in balls:
-        for w in walls:
-            collisions.ball_vs_wall(ball, w)
-
-    for rect in rectangles:
-        for w in walls:
-            collisions.rect_vs_wall(rect, w)
-
-    for ball in balls:
         for rect in rectangles:
-            rect.check_collision_ball(ball)
+            rect.integrate(dt)
 
-    for i in range(len(balls)):
-        for j in range(i + 1, len(balls)):
-            balls[i].check_collision(balls[j])
+        for ball in balls:
+            for w in walls:
+                collisions.ball_vs_wall(ball, w)
 
-    for i in range(len(rectangles)):
-        for j in range(i + 1, len(rectangles)):
-            rectangles[i].check_collision(rectangles[j])
+        for rect in rectangles:
+            for w in walls:
+                collisions.rect_vs_wall(rect, w)
 
-    for ball in balls:
-        collisions.clamp_ball_to_world(ball)
+        for ball in balls:
+            for rect in rectangles:
+                rect.check_collision_ball(ball)
 
-    for rect in rectangles:
-        collisions.clamp_rect_to_world((rect))
+        for i in range(len(balls)):
+            for j in range(i + 1, len(balls)):
+                balls[i].check_collision(balls[j])
+
+        for i in range(len(rectangles)):
+            for j in range(i + 1, len(rectangles)):
+                rectangles[i].check_collision(rectangles[j])
+
+        for ball in balls:
+            collisions.clamp_ball_to_world(ball)
+
+        for rect in rectangles:
+            collisions.clamp_rect_to_world((rect))
+
+    if not state.paused and state.selected_obj is not None:
+        state.position_history.append((
+            state.sim_time,
+            state.selected_obj.x, state.selected_obj.y,
+            state.selected_obj.vx, state.selected_obj.vy
+        ))
+        cutoff = state.sim_time - state.GRAPH_HISTORY_SECONDS
+        state.position_history = [p for p in state.position_history if p[0] >= cutoff]
 
     # ------------------------
     # Render
@@ -260,8 +300,11 @@ while running:
     pygame.draw.line(screen, (255, 255, 255), (config.BOX_RIGHT, config.BOX_TOP),   (config.BOX_RIGHT, config.BOX_BOTTOM), 3)
 
     for well in wells:
-        wx, wy = coords.world_to_screen(well.x, well.y)
-        pygame.draw.circle(screen, (255, 255, 255), (wx, wy), 6)
+        wsx, wsy = coords.world_to_screen(well.x, well.y)
+        pygame.draw.circle(screen, (180, 60, 255), (wsx, wsy), 10)
+        pygame.draw.circle(screen, (220, 140, 255), (wsx, wsy), 10, 2)
+        lbl = ui.font_panel.render(f"M={int(well.mass)}", True, (220, 180, 255))
+        screen.blit(lbl, (wsx + 13, wsy - lbl.get_height() // 2))
 
     # User-drawn walls
     for w in walls[NUM_BOUNDARY_WALLS:]:
@@ -298,15 +341,18 @@ while running:
         sx, sy = coords.world_to_screen(ball.x, ball.y)
         rp = max(1, int(ball.radius * coords.pixels_per_meter_x))
         pygame.draw.circle(screen, ball.colour, (sx, sy), rp)
-        # Green ring on controlled ball in simulation view
-        if ball is state.controlled_ball:
+        # Green ring on the selected ball in simulation view
+        if ball is state.selected_obj:
             pygame.draw.circle(screen, (80, 255, 80), (sx, sy), rp + 4, 2)
 
     for rect in rectangles:
-        sx, sy = coords.world_to_screen(rect.x - rect.length/2, rect.y + rect.width/2)
+        sx, sy = coords.world_to_screen(rect.x - rect.length / 2, rect.y + rect.width / 2)
         len_x = max(1, int(rect.length * coords.pixels_per_meter_x))
         len_y = max(1, int(rect.width * coords.pixels_per_meter_y))
         pygame.draw.rect(screen, rect.colour, (sx, sy, len_x, len_y), width=0, border_radius=0)
+        # Green box on the selected rectangle in simulation view
+        if rect is state.selected_obj:
+            pygame.draw.rect(screen, (80, 255, 80), (sx - 3, sy - 3, len_x + 6, len_y + 6), 2)
 
     # White ring/box on selected object in simulation view
     if state.mode == "SPRING" and state.spring_selected_obj is not None:
@@ -328,12 +374,15 @@ while running:
         pygame.draw.line(screen, (180, 180, 80), (sx1, sy1), (mx, my), 1)
 
     # Panel always visible
-    ui.draw_spring_panel(screen, balls, rectangles, state.spring_selected_obj, springs, state.controlled_ball)
+    ui.draw_spring_panel(screen, balls, rectangles, state.spring_selected_obj, springs, state.selected_obj)
 
     ui.draw_object_info_hud(screen, state.selected_obj, balls, rectangles, state.g)
     ui.draw_slider(screen, state.g)
     ui.draw_slider2(screen, state.e)
     ui.draw_mode_indicator(screen, state.mode)
+    ui.draw_pause_indicator(screen, state.paused)
+    if state.selected_obj is not None:
+        ui.draw_kinematics_graphs(screen, state.position_history)
 
     pygame.display.flip()
 
