@@ -1,0 +1,233 @@
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #121212;
+  color: #eee;
+  font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+.app {
+  max-width: 1300px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.app-title {
+  font-size: 20px;
+  font-weight: 600;
+  margin: 0 0 12px;
+  color: #ddd;
+}
+
+.connection-banner {
+  padding: 8px 12px;
+  background: #402;
+  border-radius: 6px;
+  margin-bottom: 12px;
+  color: #fbb;
+}
+
+.mode-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.mode-buttons { display: flex; gap: 6px; }
+
+.mode-btn {
+  background: #1c1c1c;
+  border: 2px solid #444;
+  color: #999;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-family: monospace;
+  font-weight: bold;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.mode-btn-active { background: #262626; }
+
+.mode-right { display: flex; gap: 8px; align-items: center; }
+
+.pause-btn, .delete-btn {
+  background: #1c1c1c;
+  border: 1px solid #444;
+  color: #ccc;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.pause-btn-active { border-color: #f55; color: #f88; }
+
+.main-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  height: 480px;
+}
+
+.sim-canvas {
+  background: #1e1e1e;
+  border-radius: 4px;
+  cursor: crosshair;
+  flex-shrink: 0;
+  display: block;
+  width: 800px;
+  height: 480px;
+}
+
+.object-panel {
+  width: 60px;
+  height: 480px;
+  background: rgba(20,20,20,0.8);
+  border-radius: 4px;
+  padding: 4px;
+  overflow-y: auto;
+  flex-shrink: 0;
+}
+
+.object-panel-title {
+  font-size: 11px;
+  color: #999;
+  font-family: monospace;
+  margin-bottom: 4px;
+  text-align: center;
+}
+
+.object-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  border-bottom: 1px solid #333;
+}
+
+.object-row:hover { background: #2a2a2a; }
+.row-spring-selected { background: #3c3c14 !important; }
+.row-info-selected { background: #143c14 !important; }
+.row-linked { background: #321e0a !important; }
+
+.swatch-circle, .swatch-square {
+  width: 12px;
+  height: 12px;
+  flex-shrink: 0;
+  display: inline-block;
+}
+.swatch-circle { border-radius: 50%; }
+
+.object-label {
+  font-family: monospace;
+  font-size: 11px;
+  color: #ddd;
+}
+
+.sliders {
+  display: flex;
+  gap: 14px;
+  padding: 0 6px;
+  flex-shrink: 0;
+  height: 480px;
+}
+
+.slider-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+
+.slider-label {
+  font-family: monospace;
+  font-size: 12px;
+  margin-bottom: 6px;
+  white-space: nowrap;
+}
+
+.vertical-slider {
+  writing-mode: vertical-lr;
+  direction: rtl;
+  width: 20px;
+  height: 420px;
+  accent-color: rgb(255, 200, 60);
+}
+
+.slider-e { accent-color: rgb(100, 220, 255); }
+
+.graphs-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+  height: 480px;
+  justify-content: flex-start;
+}
+
+.graph-svg { border-radius: 3px; }
+
+.info-panel {
+  margin-top: 12px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 6px;
+  padding: 8px 12px;
+  font-family: monospace;
+  font-size: 13px;
+  max-width: 500px;
+}
+
+.info-panel-empty { color: #888; }
+
+.info-title {
+  font-size: 13px;
+  margin-bottom: 6px;
+  font-weight: bold;
+}
+
+.info-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 0;
+}
+
+.info-label { color: #ccc; min-width: 130px; }
+
+.info-values { display: flex; gap: 6px; }
+
+.info-cell {
+  width: 78px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: #a0a0a0;
+  font-family: monospace;
+  font-size: 13px;
+  text-align: right;
+  padding: 2px 4px;
+  border-radius: 3px;
+}
+
+.info-cell.editable {
+  color: rgb(255, 210, 70);
+  border-color: #444;
+}
+
+.info-cell.editable:focus {
+  outline: none;
+  border-color: rgb(200, 200, 70);
+  background: rgba(45,45,18,0.6);
+  color: #ffff78;
+}
+
+.info-cell.readonly {
+  color: rgb(160,160,160);
+  border-color: transparent;
+}
