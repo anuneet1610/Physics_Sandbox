@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: physics-sandbox-backend
+    runtime: python
+    plan: free
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: ALLOWED_ORIGINS
+        value: "*"  # replace with your Vercel URL(s) after first deploy, e.g. https://physics-sandbox.vercel.app
+      - key: PYTHON_VERSION
+        value: 3.11.9
