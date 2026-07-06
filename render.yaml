@@ -8,6 +8,6 @@ services:
     startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: ALLOWED_ORIGINS
-        value: "*"  # replace with your Vercel URL(s) after first deploy, e.g. https://physics-sandbox.vercel.app
+        value: "https://physics-sandbox-roan.vercel.app/"  # replace with your Vercel URL(s) after first deploy, e.g. https://physics-sandbox.vercel.app
       - key: PYTHON_VERSION
         value: 3.11.9
