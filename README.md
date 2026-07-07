@@ -7,6 +7,8 @@ This repo contains two implementations:
 - **`pygame_version/`** — the original standalone desktop app, built in Python with Pygame. Pygame is only used for rendering, windowing, and input handling; it provides no physics.
 - **`web_version/`** — a port of the same simulation to a web app, with a **FastAPI** backend that owns and runs the physics loop server-side (streaming state to the browser over a WebSocket at 60Hz) and a **React (Vite)** frontend that renders the world on a `<canvas>` with the side panel / sliders / info panel / kinematics graphs in HTML/SVG.
 
+You can access the deployed web version from this link: https://physics-sandbox-roan.vercel.app/  (It may take a minute to connect to the server and load)
+
 ## What it does
 
 - Spawn **balls** and **rectangles** with random velocities, sizes, and colours
